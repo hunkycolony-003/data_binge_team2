@@ -1,72 +1,67 @@
+# Ensure the virtual environment is activated
+import os
+import sys
+
+venv_path = os.path.join(os.path.dirname(__file__), '.venv', 'bin', 'activate_this.py')
+if os.path.exists(venv_path):
+    with open(venv_path) as f:
+        exec(f.read(), {'__file__': venv_path})
+else:
+    print("Virtual environment not found. Please create one using 'python -m venv .venv' and install the required packages.")
+
+# Ensure required packages are installed
+required_packages = ['sqlite3', 'collections', 'seaborn', 'pandas', 'matplotlib']
+for package in required_packages:
+    try:
+        __import__(package)
+    except ImportError:
+        print(f"Package {package} not found. Please install it using 'pip install {package}'.")
+
 import sqlite3
 from collections import Counter
+import seaborn as sns
+import pandas as pd
 import matplotlib.pyplot as plt
 
 # Connect to the database
 conn = sqlite3.connect('database.db')
 
 # Create a cursor object
+conn.row_factory = sqlite3.Row
 cur = conn.cursor()
 
 # Example query to test the connection
 cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
 
-# Print the list of tables
-cur.execute("SELECT title FROM leetcode WHERE difficulty = 'Hard';")
-hard_titles = cur.fetchall()
-cur.execute("SELECT topic_tags FROM leetcode WHERE difficulty = 'Hard';")
-hard_tags = cur.fetchall()
+# Fetch data from the table
+cur.execute("SELECT * FROM leetcode;")
+rows = cur.fetchall()
 
-# Fetch all titles and tags from the query result
-titles = [row[0] for row in hard_titles]
-tags = [row[0] for row in hard_tags]
+# Clean the data
+cleaned_data = []
+for row in rows:
+    if row['difficulty'] is not None and row['no_similar_questions'] is not None:
+        cleaned_data.append(row)
 
-# Split titles into words and count the occurrences
-word_counts = Counter(word for title in titles for word in title.split())
+        # Extract difficulty levels and number of similar questions
+        difficulty_levels = [row['difficulty'] for row in cleaned_data]
+        no_similar_questions = [row['no_similar_questions'] for row in cleaned_data]
 
-# Split tags into individual tags and count occurrences, ignoring None values
-tag_counts = Counter(tag.strip("' ") for row in hard_tags if row[0] is not None for tag in row[0].split(','))
+        # Create a DataFrame for plotting
+        data = pd.DataFrame({
+            'difficulty': difficulty_levels,
+            'no_similar_questions': no_similar_questions
+        })
 
-# List of common English words to exclude
-common_words = {'the', 'and', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'of', 'from', 'as', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'that', 'which', 'who', 'whom', 'this', 'these', 'those', 'it', 'its', 'he', 'she', 'they', 'them', 'his', 'her', 'their', 'there', 'here', 'when', 'where', 'why', 'how', 'what', 'all', 'any', 'some', 'no', 'not', 'but', 'or', 'if', 'then', 'else', 'than', 'so', 'such', 'too', 'very', 'can', 'could', 'will', 'would', 'should', 'may', 'might', 'must', 'shall'}
+        # Create a swarm plot
+        plt.figure(figsize=(10, 6))
+        sns.swarmplot(x='difficulty', y='no_similar_questions', data=data)
+        plt.title('Swarm Plot of Difficulty Levels vs. Number of Similar Questions')
+        plt.xlabel('Difficulty Level')
+        plt.ylabel('Number of Similar Questions')
+        plt.show()
 
-# Filter out common words from the word counts
-filtered_word_counts = Counter({word: count for word, count in word_counts.items() if word.lower() not in common_words})
-
-# Replace the original word_counts with the filtered one
-word_counts = filtered_word_counts
-
-# Get the top 20 most common words and tags
-top_20_words = word_counts.most_common(20)
-top_20_tags = tag_counts.most_common(20)
-
-
-# Separate the words, tags and their counts
-words, word_counts = zip(*top_20_words)
-tags, tag_counts = zip(*top_20_tags)
-
-# Create a horizontal bar chart with different colors for each bar
-plt.figure(figsize=(14, 10))
-
-# Plot top 20 words
-plt.subplot(1, 2, 1)
-colors = plt.cm.viridis(range(len(words)))  # Use a colormap to generate different colors
-plt.barh(words, word_counts, color=colors)
-plt.xlabel('Count')
-plt.ylabel('Words')
-plt.title('Top 20 Words in Hard Leetcode Questions')
-plt.gca().invert_yaxis()  # Invert y-axis to have the highest count at the top
-
-# Plot top 20 tags
-plt.subplot(1, 2, 2)
-colors = plt.cm.plasma(range(len(tags)))  # Use a different colormap for tags
-plt.barh(tags, tag_counts, color=colors)
-plt.xlabel('Count')
-plt.ylabel('Tags')
-plt.title('Top 20 Tags in Hard Leetcode Questions')
-plt.gca().invert_yaxis()  # Invert y-axis to have the highest count at the top
-
-plt.tight_layout()
-plt.show()
+# Example of how to use cleaned_data
+print(f"Cleaned data has {len(cleaned_data)} entries out of {len(rows)} total entries.")
 # Close the connection
 conn.close()
