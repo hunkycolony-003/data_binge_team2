@@ -1,49 +1,31 @@
-import sqlite3
-import seaborn as sns
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Connect to the database
-conn = sqlite3.connect('database.db')
-
-# Create a cursor object
-conn.row_factory = sqlite3.Row
-cur = conn.cursor()
-
-# Example query to test the connection
-cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
-
-# Fetch data from the table
-cur.execute("SELECT * FROM leetcode;")
-rows = cur.fetchall()
+# Load data from CSV file
+try:
+    df = pd.read_csv('/Users/soumyajit/Documents/Programming/data_binge_team2/leetcode.csv')
+except FileNotFoundError as e:
+    print(f"An error occurred: {e}")
+    df = pd.DataFrame()
 
 # Clean the data
-cleaned_data = []
-for row in rows:
-    if row['difficulty'] is not None and row['no_similar_questions'] is not None:
-        cleaned_data.append(row)
+cleaned_data = df.dropna(subset=['difficulty', 'no_similar_questions'])
 
-# Extract difficulty levels and number of similar questions
-difficulty_levels = [row['difficulty'] for row in cleaned_data]
-no_similar_questions = [row['no_similar_questions'] for row in cleaned_data]
+# Ensure 'difficulty' and 'no_similar_questions' columns exist before performing groupby operation
+if 'difficulty' in cleaned_data.columns and 'no_similar_questions' in cleaned_data.columns:
+    # Calculate mean, median, and standard deviation for each difficulty level
+    stats = cleaned_data.groupby('difficulty')['no_similar_questions'].agg(['mean', 'median', 'std']).reset_index()
+else:
+    print("The required columns do not exist in the DataFrame.")
+    stats = pd.DataFrame()
 
-# Create a DataFrame for plotting
-data = pd.DataFrame({
-    'difficulty': difficulty_levels,
-    'no_similar_questions': no_similar_questions
-})
-
-# Ensure 'difficulty' is treated as an ordered categorical variable
-#difficulty_order = ['Easy', 'Medium', 'Hard']  # Adjust as necessary based on your dataset
-#data['difficulty'] = pd.Categorical(data['difficulty'], categories=difficulty_order, ordered=True)
-
-# Create a swarm plot with different colors for difficulty levels
-plt.figure(figsize=(12, 6))  # Make the plot larger
-sns.swarmplot(x='difficulty', y='no_similar_questions', data=data, size=1)
-plt.title('Swarm Plot of Number of Similar Questions vs. Difficulty Levels')
-plt.xlabel('Difficulty Level')
-plt.ylabel('Number of Similar Questions')
-plt.show()
-
-# Close the connection
-conn.close()
+# Ensure 'difficulty', 'mean', 'median', and 'std' columns exist before plotting
+if not stats.empty and all(col in stats.columns for col in ['difficulty', 'mean', 'median', 'std']):
+    # Plot the statistics
+    stats_melted = stats.melt(id_vars='difficulty', value_vars=['mean', 'median', 'std'], var_name='statistic', value_name='value')
+    sns.barplot(x='difficulty', y='value', hue='statistic', data=stats_melted)
+    plt.title('Statistics of No. of Similar Questions by Difficulty Level')
+    plt.show()
+else:
+    print("The required columns for plotting do not exist in the DataFrame.")
